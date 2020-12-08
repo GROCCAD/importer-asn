@@ -40,6 +40,115 @@ def get_subjects_by_type(g, typeval):
 # all_props = 
 # # A class --> property mapping (all properties that have domain one of these classes)
 
+CONCEPT_PRED = URIRef('http://www.w3.org/2004/02/skos/core#Concept')
+CONCEPT_SCHEME_PRED = URIRef('http://www.w3.org/2004/02/skos/core#ConceptScheme')
+W3DTF_DATATYPE = URIRef('http://purl.org/dc/terms/W3CDTF')
+
+
+# TODO: handle list-like attrs
+# HAS_TOP_CONCEPT_PRED = URIRef('http://www.w3.org/2004/02/skos/core#hasTopConcept')
+
+def get_vocab_props(g):
+    concept_scheme = list(get_subjects_by_type(g, CONCEPT_SCHEME_PRED))[0]
+    print('found concept_scheme=', concept_scheme)
+    vocab_dict = {}
+    vocab_dict['uri'] = str(concept_scheme)
+    for pred, obj in g.predicate_objects(subject=concept_scheme):
+        short_pred = g.namespace_manager.normalizeUri(pred)
+        if isinstance(obj, URIRef):
+            short_obj = g.namespace_manager.normalizeUri(obj)
+            vocab_dict[short_pred] = short_obj
+        elif isinstance(obj, Literal):
+            if obj.datatype == W3DTF_DATATYPE:
+                vocab_dict[short_pred] = str(obj)
+            else:    
+                vocab_dict[short_pred] = obj.value
+        else:
+            print('found unexpected obj kind', kind(obj))
+    return vocab_dict
+
+
+def get_terms_props(g):
+    concepts_list = []
+    concepts = list(get_subjects_by_type(g, CONCEPT_PRED))
+    print('found', len(concepts), 'concepts')
+    for concept in concepts:
+        concept_dict = {}
+        concept_dict['uri'] = str(concept)
+        for pred, obj in g.predicate_objects(subject=concept):
+            short_pred = g.namespace_manager.normalizeUri(pred)
+            if isinstance(obj, URIRef):
+                short_obj = g.namespace_manager.normalizeUri(obj)
+                concept_dict[short_pred] = short_obj
+            elif isinstance(obj, Literal):
+                if obj.datatype == W3DTF_DATATYPE:
+                    concept_dict[short_pred] = str(obj)
+                else:    
+                    concept_dict[short_pred] = obj.value
+            else:
+                print('found unexpected obj kind', kind(obj))
+        concepts_list.append(concept_dict)
+    return concepts_list
+
+
+VOCAB_EXTRACT_DICT = {
+    'description': 'dc:description',
+    'title': 'dc:title',
+}
+
+VOCAB_TERM_EXTRACT_DICT = {
+    'label': 'skos:prefLabel',
+    'definition': 'skos:definition'
+}
+
+def skos_to_terms(g):
+    vocab_data = {}
+    # vocab
+    vocab_dict = get_vocab_props(g)
+    vocab_name = guess_name_from_uri(vocab_dict['uri'])
+    vocab_data['type'] = 'ControlledVocabulary'
+    vocab_data['name'] = vocab_name
+    vocab_data['uri'] = vocab_dict['uri']
+    for keydest, keysrc in VOCAB_EXTRACT_DICT.items():
+        vocab_data[keydest] = vocab_dict.get(keysrc, None)
+    # terms
+    vocab_data['terms'] = []
+    concepts_list = get_terms_props(g)
+    for concept_dict in concepts_list:
+        concept_data = {}
+        term = concept_dict['uri'].split(vocab_name)[1].strip('/')
+        if '/' in term:
+            raise NotImplementedError('FOUND NESTED TERMS --- need to update code')
+        concept_data['term'] = term
+        for keydest, keysrc in VOCAB_TERM_EXTRACT_DICT.items():
+            concept_data[keydest] = concept_dict.get(keysrc, None)
+        concept_data['source_uri'] = concept_dict['uri']
+        vocab_data['terms'].append(concept_data)
+    return vocab_data
+
+def guess_name_from_uri(uri):
+    """
+    Given a URI like host.tld/bla/fah/jah or host.tld/bla/fah/jah/, returns jah.
+    """
+    split_uri = uri.split('/')
+    if split_uri[-1]:
+        return split_uri[-1]    # no trailing slash
+    else:
+        return split_uri[-2]    # has trailing slash
+
+
+
+
+
+
+
+
+
+
+
+
+
+# OLD
 
 def build_class_props_map(g):
     class_props_map = {}
