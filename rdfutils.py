@@ -98,6 +98,7 @@ VOCAB_EXTRACT_DICT = {
 
 VOCAB_TERM_EXTRACT_DICT = {
     'label': 'skos:prefLabel',
+    'alt_label': 'skos:altLabel',
     'definition': 'skos:definition'
 }
 
